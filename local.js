@@ -4,7 +4,7 @@
 let crypto = require('crypto')
 let server = require('http').createServer();
 let io = require('socket.io')(server);
-let sql = require('./localsql');
+let sql = require('./sql');
 server.listen(3000);
 
 
