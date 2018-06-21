@@ -1,4 +1,13 @@
 {
+  "name": "temp",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "local.js"
+  },
+  "author": "",
+  "license": "ISC",
   "requires": true,
   "lockfileVersion": 1,
   "dependencies": {
@@ -369,5 +378,4 @@
       "integrity": "sha1-AI4G2AlDIMNy28L47XagymyKxBk="
     }
   }
-  "scripts": {"test": "local.js"}
 }
