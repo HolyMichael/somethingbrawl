@@ -206,7 +206,8 @@ let playerGames = []
 					this.p2Status = new playerStatus(result[0].Char_Health, result[0].Char_Energy, result[0].Char_EnergyGrowth, result[0].Char_MaxEnergy);
 					this.p1Status = new playerStatus(result[1].Char_Health, result[1].Char_Energy, result[0].Char_EnergyGrowth, result[1].Char_MaxEnergy);
 				}
-
+				console.log(this.p1.name);
+				console.log(this.p1deck);
 				console.log("loaded status of p1:");
 				console.log(this.p1Status);
 				console.log("loaded status of p2:");
