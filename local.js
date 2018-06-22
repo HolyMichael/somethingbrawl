@@ -4,17 +4,18 @@
 let crypto = require('crypto')
 let server = require('http').createServer();
 let io = require('socket.io')(server);
-let sql = require('./sql');
+let sql = require('./localsql'); //fkml change this everytim u go to server
 server.listen(3000);
 
 
 
 //functions
 
-function randomCardsFromDeck(deck){
+function randomCardsFromDeck(deck, number){
 	let max = Object.keys(deck).length;
 	let cards = [];
-	for(i=0;i<3;i++){
+	console.log("drawing this number of cards: " + number);
+	for(i=0;i<number;i++){
 		cards.push(deck[Math.floor(Math.random()*(max))].id);     // returns a number between 1 and decksize
 	}
 	return cards;
@@ -122,11 +123,14 @@ let playerGames = []
 //}
 
 //player status
-	let playerStatus = function (health, maxHealth ,energy){
+	let playerStatus = function (health ,energy, energygrowth, maxenergy){
 		this.health = health;
 		this.armor = 0;
-		this.maxHealth = maxHealth;
+		this.maxHealth = health;
 		this.energy = energy;
+		this.curmaxenergy = energy;
+		this.energygrowth = energygrowth;
+		this.maxenergy = maxenergy;
 		this.turnsTimedOut = 0;
 	}
 
@@ -173,23 +177,16 @@ let playerGames = []
 			this.transmission.enemy_armor = this.p2Status.armor;
 		}
 
-		game.prototype.switchTransmission = function(){ //this is called after transmitting to the first player so the second one receives the update correctly
-		//we need to update both players so here we just have to switch self_ with enemy_
-			let tempHp, tempEnergy, tempMaxHp, tempArmor;
-			tempHp = this.transmission.self_hp;
-			tempMaxHp = this.transmission.self_maxhp;
-			tempEnergy = this.transmission.self_energy;
-			tempArmor = this.transmission.self_armor;
+		game.prototype.switchTransmission = function(){ //makes the transmission for player2
+			this.transmission.self_maxhp = this.p2Status.maxHealth;
+			this.transmission.self_hp = this.p2Status.health;
+			this.transmission.self_energy = this.p2Status.energy;
+			this.transmission.self_armor = this.p2Status.armor;
 
-			this.transmission.self_maxhp = this.transmission.enemy_maxhp;
-			this.transmission.self_hp = this.transmission.enemy_hp;
-			this.transmission.self_energy = this.transmission.enemy_energy;
-			this.transmission.self_armor = this.transmission.enemy_armor;
-
-			this.transmission.enemy_maxhp = tempMaxHp;
-			this.transmission.enemy_hp = tempHp;
-			this.transmission.enemy_energy = tempEnergy;
-			this.transmission.enemy_armor = tempArmor;
+			this.transmission.enemy_maxhp = this.p1Status.maxHealth;
+			this.transmission.enemy_hp = this.p1Status.health;
+			this.transmission.enemy_energy = this.p1Status.energy;
+			this.transmission.enemy_armor = this.p1Status.armor;
 		}
 
 		game.prototype.transmitGameStatus = function(){ //transmit : both players health, self energy?
@@ -203,19 +200,24 @@ let playerGames = []
 		game.prototype.setUpGame = function(firstPlayer){
 			sql.GetPlayerStats(p1.id, p2.id).then((result) =>{
 				if(result[0].user_id == p1.id){
-					this.p1Status = new playerStatus(result[0].Char_Health, result[0].Char_Health ,1);
-					this.p2Status = new playerStatus(result[1].Char_Health, result[1].Char_Health ,2);
+					this.p1Status = new playerStatus(result[0].Char_Health, result[0].Char_Energy, result[0].Char_EnergyGrowth, result[0].Char_MaxEnergy);
+					this.p2Status = new playerStatus(result[1].Char_Health, result[1].Char_Energy, result[1].Char_EnergyGrowth, result[1].Char_MaxEnergy);
 				} else {
-					this.p2Status = new playerStatus(result[0].Char_Health, result[0].Char_Health ,1);
-					this.p1Status = new playerStatus(result[1].Char_Health, result[1].Char_Health ,2);
+					this.p2Status = new playerStatus(result[0].Char_Health, result[0].Char_Energy, result[0].Char_EnergyGrowth, result[0].Char_MaxEnergy);
+					this.p1Status = new playerStatus(result[1].Char_Health, result[1].Char_Energy, result[0].Char_EnergyGrowth, result[1].Char_MaxEnergy);
 				}
+
+				console.log("loaded status of p1:");
+				console.log(this.p1Status);
+				console.log("loaded status of p2:");
+				console.log(this.p2Status);
 
 	  			console.log("decks \n" + this.p1deck +"\n" + this.p2deck);
 				if (firstPlayer == 0){
 					this.currentPlayer = this.p1;
 					io.to(this.p2.sock).emit("disableEndTurnBT");
 
-					let cardsToDraw = randomCardsFromDeck(this.p1deck);
+					let cardsToDraw = randomCardsFromDeck(this.p1deck , 3);
 					console.log(cardsToDraw);
 					io.to(this.p1.sock).emit("drawCards", {cards: cardsToDraw, ammount: Object.keys(cardsToDraw).length});
 				}
@@ -223,7 +225,7 @@ let playerGames = []
 					this.currentPlayer = this.p2;
 					io.to(this.p1.sock).emit("disableEndTurnBT");
 
-					let cardsToDraw = randomCardsFromDeck(this.p2deck);
+					let cardsToDraw = randomCardsFromDeck(this.p2deck , 3);
 					console.log(cardsToDraw);
 					io.to(this.p2.sock).emit("drawCards", {cards: cardsToDraw});
 				}
@@ -257,21 +259,27 @@ let playerGames = []
 
 		game.prototype.playCard = function(message){
 			if(this.currentPlayer == this.p1){
-				//if(this.p1Status.energy < cardcost)
+				console.log("player 1 energy ");
+				console.log(this.p1Status);
+				console.log("card cost " + CardList[message.card-1].cost);
+				if(this.p1Status.energy >= CardList[message.card-1].cost){
 					this.playerUsedCards.push(message.card - 1)
-					console.log(this.p1.name + " used so far");
-					console.log(this.playerUsedCards);
 					io.to(this.p1.sock).emit("playCardAllowed");
-				//if not
-					//io.to(this.p1.sock).emit("playCardNotAllowed");
+					this.p1Status.energy -= CardList[message.card-1].cost;
+					this.transmitGameStatus();
+				} else{
+					io.to(this.p1.sock).emit("playCardNotAllowed");
+				}
 			} else {
-				//if(this.p1Status.energy < cardcost)
+				console.log("player 2 energy " + this.p2Status + " card cost " + CardList[message.card-1].cost)
+				if(this.p2Status.energy > CardList[message.card-1].cost){
 					this.playerUsedCards.push(message.card - 1)
-					console.log(this.p2.name + " used so far");
-					console.log(this.playerUsedCards);
 					io.to(this.p2.sock).emit("playCardAllowed");
-				//if not
-					//io.to(this.p1.sock).emit("playCardNotAllowed");
+					this.p2Status.energy -= CardList[message.card-1].cost;
+					this.transmitGameStatus();
+				} else{
+					io.to(this.p2.sock).emit("playCardNotAllowed");
+				}
 			}
 		}
 
@@ -282,7 +290,7 @@ let playerGames = []
 				this.currentPlayer = this.p2;
 				io.to(this.p2.sock).emit("yourTurn");
 				//get him some cards!
-				let cardsToDraw = randomCardsFromDeck(this.p2deck);
+				let cardsToDraw = randomCardsFromDeck(this.p2deck, 3);
 				console.log(cardsToDraw);
 				io.to(this.p2.sock).emit("drawCards", {cards: cardsToDraw, ammount: Object.keys(cardsToDraw).length});
 
@@ -294,7 +302,7 @@ let playerGames = []
 				io.to(this.p1.sock).emit("yourTurn");
 
 				//get him some cards!
-				let cardsToDraw = randomCardsFromDeck(this.p1deck);
+				let cardsToDraw = randomCardsFromDeck(this.p1deck, 3);
 				console.log(cardsToDraw);
 				io.to(this.p1.sock).emit("drawCards", {cards: cardsToDraw, ammount: Object.keys(cardsToDraw).length});
 
@@ -326,10 +334,10 @@ let playerGames = []
 				selfPlayer = this.p2Status;
 			}
 
-			//things that happen at the start of every turn
+			//things that happen at the start of every turn move this to turn end function
 			selfPlayer.armor = 0;
 
-			//actual card logic
+			//actual card logic make this run every played card
 
 			let iMax = Object.keys(this.playerUsedCards).length;
 			console.log("applying game logic with cards:");
@@ -368,6 +376,13 @@ let playerGames = []
 				}
 			}
 			console.log(this.playerUsedCards);
+
+			//things that happen at the end of every turn move this to turn end function
+			if((targetPlayer.curmaxenergy + targetPlayer.energygrowth) > targetPlayer.maxenergy)
+				targetPlayer.curmaxenergy = targetPlayer.energygrowth;
+			else
+				targetPlayer.curmaxenergy += targetPlayer.energygrowth;
+			targetPlayer.energy = targetPlayer.curmaxenergy;
 			this.transmitGameStatus();
 			this.setTurnTimer();
 		}
@@ -548,10 +563,10 @@ io.sockets.on('connection', function(socket)
 			//we warn the player calling this to load the game and we find his deck
 			this.CurrentGameIndex;
   			io.to(playerList[value].sock).emit('foundOpp',{username:PlayerRef.name}); //we send him the oposing player name
-  			sql.GetPlayerDeck(playerList[value].id).then((result) =>{
+  			sql.GetPlayerDeck(playerList[value].id).then((result) =>{ //we send him his deck
   				console.log(playerList[value].name + "'s Deck");
   				console.log(result);
-  				playerGames[this.CurrentGameIndex].p1deck=result;
+  				playerGames[this.CurrentGameIndex].p2deck=result;
   				io.to(playerList[value].sock).emit('cardList',{cards:result});
 			}).catch(function (error){
 				console.log(error);
@@ -561,7 +576,7 @@ io.sockets.on('connection', function(socket)
 			sql.GetPlayerDeck(PlayerRef.id).then((result) =>{
 				console.log(PlayerRef.name + "'s Deck");
   				console.log(result);
-  				playerGames[this.CurrentGameIndex].p2deck=result;
+  				playerGames[this.CurrentGameIndex].p1deck=result;
   				socket.emit("cardList",{cards:result})
 				}).catch(function (error){
 					console.log(error);

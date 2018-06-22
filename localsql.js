@@ -5,8 +5,8 @@ let mysql = require('mysql');
 let con = mysql.createConnection({
   host: "127.0.0.1",
   user: "migue_server",
-  password: "Wepp801*",
-  database: "somethingbrawl"
+  password: "root",
+  database: "Wepp801*"
 });
 
 //functions
@@ -42,8 +42,8 @@ exports.GetCard = new Promise(function(resolve, reject){
 
 exports.GetPlayerStats = function (userid1, userid2){
 	return new Promise(function(resolve, reject){
-		let sql = "SELECT user_id, Char_Health FROM user WHERE user_id=" + mysql.escape(userid1) + 
-		" UNION SELECT user_id, Char_Health FROM user WHERE user_id=" + mysql.escape(userid2);
+		let sql = "SELECT user_id, Char_Health, Char_Energy, Char_EnergyGrowth, Char_MaxEnergy FROM user WHERE user_id=" + mysql.escape(userid1) + 
+		" UNION SELECT user_id, Char_Health, Char_Energy, Char_EnergyGrowth, Char_MaxEnergy FROM user WHERE user_id=" + mysql.escape(userid2);
 		con.query(sql, function (err, result, fields) {
 			if (err) reject(err); //server related issue
 			if (isEmpty(result)) reject(err); //user not found
@@ -81,7 +81,6 @@ exports.GetPlayerDeck = function (userid){
 				con.query(sql, function(err, result, fields){
 					if (err) reject(err);
 					if (isEmpty(result)) reject("user not found");
-					console.log(result);
 					resolve(result);
 				});
 			});
