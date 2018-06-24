@@ -87,3 +87,34 @@ exports.GetPlayerDeck = function (userid){
 		});
 	});
 }
+
+exports.rewardPlayer = function(userid, cardid){
+	return new Promise(function(resolve, reject){
+		let sql = "SELECT * FROM usercards WHERE userid=" + mysql.escape(userid) + " AND cardid=" + mysql.escape(cardid);
+		con.query(sql, function (err, result, fields) {
+			if (err) reject(err); //server related issue
+			if (isEmpty(result)){
+				console.log(result);
+				let sql = "INSERT INTO usercards (`userid`, `cardid`, `ownedammount`) VALUES" +
+					"(" + mysql.escape(userid) +
+					"," + mysql.escape(cardid) +
+					",1)";
+				con.query(sql, function (err, result) {
+					if (err) reject(err);
+					resolve(result);
+				});
+				return;
+			}
+			else{
+				console.log("adding repeated card" + result[0].cardid);
+				let ammount = result[0].ownedammount;
+				ammount ++;
+				var sql = "UPDATE usercards SET ownedammount =" + mysql.escape(ammount) + " WHERE userid=" + mysql.escape(userid) + " AND cardid=" + mysql.escape(cardid);
+				con.query(sql, function (err, result) {
+					if (err) reject(err);
+					resolve(result);
+				});
+			}
+		});
+	});
+}

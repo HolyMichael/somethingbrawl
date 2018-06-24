@@ -1,4 +1,4 @@
-//update trip
+
 
 // Server setup
 let crypto = require('crypto')
@@ -21,9 +21,12 @@ function randomCardsFromDeck(deck, number){
 	return cards;
 }
 
+function randomCardFromAllCards(){
+	let max = Object.keys(CardList).length;
+	return Math.floor((Math.random()*max)) + 1;
+}
+
 function GetMatchmakingArray(callingsocket){
-		//explanation for loop
-		//https://medium.com/@AamuLumi/voyage-to-the-most-efficient-loop-in-nodejs-and-a-bit-js-5961d4524c2e
 	let returnme = []
 	let i = 0;
 	const iMax = Object.keys(playerList).length;
@@ -146,7 +149,6 @@ let playerGames = []
 		this.p2loaded = false;
 
 		this.currentPlayer;
-		this.playerUsedCards = [];
 
 		this.p1deck;
 		this.p2deck;
@@ -219,6 +221,7 @@ let playerGames = []
 					io.to(this.p2.sock).emit("disableEndTurnBT");
 
 					let cardsToDraw = randomCardsFromDeck(this.p1deck , 3);
+					this.p1hand = cardsToDraw; //kept to avoid cheaters
 					console.log(cardsToDraw);
 					io.to(this.p1.sock).emit("drawCards", {cards: cardsToDraw, ammount: Object.keys(cardsToDraw).length});
 				}
@@ -227,6 +230,7 @@ let playerGames = []
 					io.to(this.p1.sock).emit("disableEndTurnBT");
 
 					let cardsToDraw = randomCardsFromDeck(this.p2deck , 3);
+					this.p2hand = cardsToDraw; //kept to avoid cheaters
 					console.log(cardsToDraw);
 					io.to(this.p2.sock).emit("drawCards", {cards: cardsToDraw});
 				}
@@ -260,23 +264,30 @@ let playerGames = []
 
 		game.prototype.playCard = function(message){
 			if(this.currentPlayer == this.p1){
-				console.log("player 1 energy ");
-				console.log(this.p1Status);
 				console.log("card cost " + CardList[message.card-1].cost);
 				if(this.p1Status.energy >= CardList[message.card-1].cost){
-					this.playerUsedCards.push(message.card - 1)
+					if(!(this.p1hand.includes(message.card-1))){ //check if he actually has that card in hand
+						io.to(this.p1.sock).emit("playCardNotAllowed");
+					}
+
+					this.p1hand.splice(this.p1hand.indexOf(message.card-1)); //remove an instance of that card from the hand
 					io.to(this.p1.sock).emit("playCardAllowed");
 					this.p1Status.energy -= CardList[message.card-1].cost;
+					this.gameLogic(this.p2Status, this.p1Status, CardList[message.card-1]);
 					this.transmitGameStatus();
 				} else{
 					io.to(this.p1.sock).emit("playCardNotAllowed");
 				}
 			} else {
-				console.log("player 2 energy " + this.p2Status + " card cost " + CardList[message.card-1].cost)
-				if(this.p2Status.energy > CardList[message.card-1].cost){
-					this.playerUsedCards.push(message.card - 1)
+				if(this.p2Status.energy >= CardList[message.card-1].cost){
+					if(!(this.p1hand.includes(message.card-1))){ //check if he actually has that card in hand
+						io.to(this.p1.sock).emit("playCardNotAllowed");
+					}
+
+					this.p2hand.splice(this.p2hand.indexOf(message.card-1)); //remove an instance of that card from the hand
 					io.to(this.p2.sock).emit("playCardAllowed");
 					this.p2Status.energy -= CardList[message.card-1].cost;
+					this.gameLogic(this.p1Status, this.p2Status, CardList[message.card-1]);
 					this.transmitGameStatus();
 				} else{
 					io.to(this.p2.sock).emit("playCardNotAllowed");
@@ -285,13 +296,32 @@ let playerGames = []
 		}
 
 		game.prototype.turnEnd = function(){
-			this.gameLogic();
+			let targetPlayer,selfPlayer;
+			if(this.currentPlayer == this.p1){
+				targetPlayer = this.p2Status;
+				selfPlayer = this.p1Status;
+			} else {
+				targetPlayer = this.p1Status;
+				selfPlayer = this.p2Status;
+			}
+			//things that happen at the end of every turn (player currently playing is selfPlayer)
+			//increment his energy by his growth stat
+			if((targetPlayer.curmaxenergy + targetPlayer.energygrowth) > targetPlayer.maxenergy)
+				targetPlayer.curmaxenergy = targetPlayer.maxenergy;
+			else
+				targetPlayer.curmaxenergy += targetPlayer.energygrowth;
+
+			//set his energy to his curmaxenergy
+			targetPlayer.energy = targetPlayer.curmaxenergy;
+
 			if (this.currentPlayer == this.p1){
 				//switch server side variables!
 				this.currentPlayer = this.p2;
 				io.to(this.p2.sock).emit("yourTurn");
+
 				//get him some cards!
 				let cardsToDraw = randomCardsFromDeck(this.p2deck, 3);
+				this.p2hand = cardsToDraw //kept to avoid cheaters
 				console.log(cardsToDraw);
 				io.to(this.p2.sock).emit("drawCards", {cards: cardsToDraw, ammount: Object.keys(cardsToDraw).length});
 
@@ -304,88 +334,109 @@ let playerGames = []
 
 				//get him some cards!
 				let cardsToDraw = randomCardsFromDeck(this.p1deck, 3);
+				this.p1hand = cardsToDraw //kept to avoid cheaters
 				console.log(cardsToDraw);
 				io.to(this.p1.sock).emit("drawCards", {cards: cardsToDraw, ammount: Object.keys(cardsToDraw).length});
 
 
 				console.log("new player is \n" + this.currentPlayer.name);
 			}
-			this.playerUsedCards = [];
+
+			//things that happen at the start of every turn (player currently playing is targetPlayer [reversed])
+			//remove armor from the player starting his turn
+			targetPlayer.armor = 0;
+			//check victories
+			console.log(this.p1.sock)
+			if(targetPlayer.health <= 0){
+				if (this.currentPlayer == this.p1)
+					this.victory(this.p2, this.p1);
+				else
+					this.victory(this.p1, this.p2);
+				return;
+			}
+			if(selfPlayer.health <= 0){
+				if (this.currentPlayer == this.p1)
+					this.victory(this.p1, this.p2);
+				else
+					this.victory(this.p2, this.p1);
+				return;
+			}
+			this.transmitGameStatus();
+			this.setTurnTimer();
 		}
 
+		game.prototype.victory = function(player, otherPlayer){
+			console.log("Player won");
+			console.log(player.name);
+			sql.rewardPlayer(player.id, randomCardFromAllCards()).then((result)=>{
+				console.log(result);
+				io.to(player.sock).emit("youWon", result);
+			}).catch(function(error){
+				console.log(error);
+			});
+			io.to(otherPlayer.sock).emit("youLost");
+			clearTimeout(this.currentTimeout);
+			player.currentGame = null;
+			otherPlayer.currentGame = null;
+			player.gameState = "mainmenu";
+			otherPlayer.gameState = "mainmenu";
+			let index = playerGames.indexOf(this);
+			if(index !== -1)
+				playerGames.splice(index,1);
+			console.log("list of games")
+			console.log(playerGames);
+		}
+		//game logic helper functions
 		game.prototype.dealDamage = function(damage, targetPlayer){
+			console.log(this.p1Status);
+			console.log(this.p2Status);
 			if (targetPlayer.armor>=damage){
-				targetPlayer.armor -=damage;
-			} else if(targetPlayer.armor<damage){
+				targetPlayer.armor -= damage;
+			} else if(targetPlayer.armor < damage){
 				damage -= targetPlayer.armor;
 				targetPlayer.armor = 0;
 				targetPlayer.health -=damage;
 			}
+			console.log(this.p1Status);
+			console.log(this.p2Status);
 		}
 
-		game.prototype.gameLogic = function(){
+		//end game logic helper functions
+
+		game.prototype.gameLogic = function(targetPlayer, selfPlayer, card){
 			//we will do all the maths here
-			let targetPlayer, selfPlayer;
-			if(this.currentPlayer == this.p1){
-				targetPlayer = this.p2Status;
-				selfPlayer = this.p1Status;
+			//general card logic
+			if (card.damage > 0 ){
+				let damage = 0;
+				console.log("damage: " + card.damage);
+				console.log("numberofstrikes: " + card.numberofstrikes);
+				for(let a=0 ; a<(card.numberofstrikes) ; a++){
+					damage += (card.damage);
+				}
+				this.dealDamage(damage, targetPlayer);
+				console.log(damage);
 			}
-			else{
-				targetPlayer = this.p1Status;
-				selfPlayer = this.p2Status;
+			//apply sum heals
+			if (card.heal > 0 ){
+				let heal = 0;
+				heal = card.heal;
+				selfPlayer.health +=heal;
+				console.log("heal: " + heal);
 			}
-
-			//things that happen at the start of every turn move this to turn end function
-			selfPlayer.armor = 0;
-
-			//actual card logic make this run every played card
-
-			let iMax = Object.keys(this.playerUsedCards).length;
-			console.log("applying game logic with cards:");
-
-
-			for(let i = 0; i<iMax;i++){
-				//catch more specific and complicated cards here and continue to the next iteration of the cycle
-				console.log(CardList[this.playerUsedCards[i]]);
-				if (CardList[this.playerUsedCards[i]].damage > 0 ){
-					let damage = 0;
-					console.log("damage: " + CardList[this.playerUsedCards[i]].damage);
-					console.log("numberofstrikes: " + CardList[this.playerUsedCards[i]].numberofstrikes);
-					for(let a=0 ; a<(CardList[this.playerUsedCards[i]].numberofstrikes) ; a++){
-						damage += (CardList[this.playerUsedCards[i]].damage);
-					}
-					this.dealDamage(damage, targetPlayer);
-					console.log(damage);
-				}
-				//apply sum heals
-				if (CardList[this.playerUsedCards[i]].heal > 0 ){
-					let heal = 0;
-					heal = CardList[this.playerUsedCards[i]].heal;
-					selfPlayer.health +=heal;
-					console.log("heal: " + heal);
-				}
-				//apply sum armor
-				if (CardList[this.playerUsedCards[i]].armor > 0 ){
-					let armor = 0;
-					armor = CardList[this.playerUsedCards[i]].armor;
-					selfPlayer.armor += armor;
-					console.log("Armor: " + armor);
-				}
-				//apply sum buffs/debuffs
-				if (CardList[this.playerUsedCards[i]].buff != ""){
-
-				}
+			//apply sum armor
+			if (card.armor > 0 ){
+				let armor = 0;
+				armor = card.armor;
+				selfPlayer.armor += armor;
+				console.log("Armor: " + armor);
 			}
-			console.log(this.playerUsedCards);
+			//apply sum buffs/debuffs
+			if (card.buff != ""){
 
-			//things that happen at the end of every turn move this to turn end function
-			if((targetPlayer.curmaxenergy + targetPlayer.energygrowth) > targetPlayer.maxenergy)
-				targetPlayer.curmaxenergy = targetPlayer.energygrowth;
-			else
-				targetPlayer.curmaxenergy += targetPlayer.energygrowth;
-			targetPlayer.energy = targetPlayer.curmaxenergy;
+			}
+			
+
 			this.transmitGameStatus();
-			this.setTurnTimer();
 		}
 	}
 //}
