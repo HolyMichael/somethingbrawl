@@ -488,6 +488,41 @@ io.sockets.on('connection', function(socket)
 	console.log ('User connected: ' + socket.id);
 	socket.emit('connectionEstabilished', {id: socket.id});
 
+	socket.on('deckedit_getCards', function(){
+		let i = 0; const iMax = Object.keys(playerList).length;
+		let userid;
+		for(;i<iMax;i++){
+			if(playerList[i].sock==socket.id){
+				userid=playerList[i].id;
+				sql.getPlayerOwnedCards(userid).then((result) =>{
+					console.log(result);
+					let cards = [];
+					let ammounts = [];
+					const oMax = Object.keys(result).length;
+					for(let o=0;o<oMax;o++){
+						cards[o] = {
+							id: result[o].id,
+							level: result[o].level,
+							type: result[o].type,
+							name: result[o].name,
+							cost: result[o].cost,
+							description: result[o].description
+						}
+						ammounts [o] = {
+							id: result[0].id,
+							ammount: result[o].ownedammount
+						}
+					}
+					console.log("dismantled result:");
+					console.log(cards);
+					console.log(ammounts);
+					socket.emit('cardsToLoadDeckEditor', {cards:cards, ammounts: ammounts});
+				});
+				break;
+			}
+		}
+	});
+
 	socket.on('pong', function(){
 		console.log("pong from " + socket.id);
 		let i = 0; const iMax = Object.keys(playerList).length;

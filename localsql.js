@@ -80,10 +80,21 @@ exports.GetPlayerDeck = function (userid){
 				}
 				con.query(sql, function(err, result, fields){
 					if (err) reject(err);
-					if (isEmpty(result)) reject("user not found");
+					if (isEmpty(result)) reject("empty");
 					resolve(result);
 				});
 			});
+		});
+	});
+}
+
+exports.getPlayerOwnedCards = function(userid){
+	return new Promise(function(resolve,reject){
+		let sql= "SELECT C.id, C.level, C.type, C.name, C.cost, C.description, U.ownedammount from usercards U JOIN card C on U.cardid = C.id AND U.userid=" + mysql.escape(userid);
+		con.query(sql, function (err, result, fields) {
+			if (err) reject(err); //server related issue
+			if (isEmpty(result)) reject("empty");
+			resolve(result);
 		});
 	});
 }
