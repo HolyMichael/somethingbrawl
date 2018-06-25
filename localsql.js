@@ -63,6 +63,62 @@ exports.GetPlayer = function(user,pass){
 	});
 };
 
+exports.RegisterPlayer = function(user,pass){
+	return new Promise(function(resolve,reject){
+		let sql = "SELECT * FROM user WHERE user_username=" + mysql.escape(user)
+		con.query(sql, function (err, result, fields) {
+			if (err) reject(2); //server related issue
+			if (!isEmpty(result)) reject("username in use");
+			if (isEmpty(result)){
+				let sql = "INSERT INTO user (`user_username`, `user_pass`, `user_activedeck`, `Char_Health`, `Char_Energy`, `Char_EnergyGrowth`, `Char_MaxEnergy`) VALUES" +
+				"(" + mysql.escape(user) +
+				"," + mysql.escape(pass) +
+				",1" + //active deck (not implemented)
+				",100" + //health
+				",5" + //energy
+				",1" + //energy growth
+				",15)"; //max energy
+				con.query(sql, function (err, result) { //create the user
+					if (err) reject(err); //server related issue
+					if (isEmpty(result)) reject("user not created");
+					console.log(result);
+					let sql = "INSERT INTO usercards (`userid`, `cardid`, `ownedammount`) VALUES ";
+					for(let i=1; i<7;i++){
+						sql += "(" + result.insertId +
+						"," + i +
+						",1), ";
+					}
+					sql = sql.substring(0, sql.length - 2); // cut out the aditional ,\blank
+					con.query(sql, function (err, result) { //give him some owned cards
+						if (err) reject(err);
+						resolve(result);
+					})
+				});
+			} 
+			
+		});
+	});
+}
+
+exports.SavePlayerDeck = function(cardlist, userid){
+	return new Promise(function(resolve, reject){
+		let sql = "DELETE FROM userdeck WHERE userid =" + mysql.escape(userid);
+		con.query(sql, function(err, result){
+			let sql = "INSERT INTO userdeck (`userid`, `deckid`, `cardid`) VALUES ";
+			const iMax= Object.keys(cardlist).length;
+			for(let i=0;i<iMax;i++){
+				sql += "(" + mysql.escape(userid) +
+				"," + 1 +
+				"," + mysql.escape(cardlist[i]) + "), ";
+			}
+			sql = sql.substring(0, sql.length - 2);
+			con.query(sql, function (err, result) {
+				if (err) reject(err);
+				resolve(result);
+			});
+		});
+	});
+}
 exports.GetPlayerDeck = function (userid){
 	return new Promise(function(resolve, reject){
 		let sql = "SELECT user_activedeck FROM user WHERE user_id=" + mysql.escape(userid);

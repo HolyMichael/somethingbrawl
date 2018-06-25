@@ -509,7 +509,7 @@ io.sockets.on('connection', function(socket)
 							description: result[o].description
 						}
 						ammounts [o] = {
-							id: result[0].id,
+							id: result[o].id,
 							ammount: result[o].ownedammount
 						}
 					}
@@ -521,6 +521,29 @@ io.sockets.on('connection', function(socket)
 				break;
 			}
 		}
+	});
+
+	socket.on('deckSaveRequest', (message)=>{
+		console.log("user requested to save:")
+		console.log(message);
+		let i = 0; const iMax = Object.keys(playerList).length;
+		for(;i<iMax;i++){
+			if(playerList[i].sock==socket.id){
+				sql.SavePlayerDeck(message.cards, playerList[i].id).then(() =>{
+					socket.emit('deckSaveSucess');
+				});
+				break;
+			}
+		}
+	})
+
+	socket.on('registerUser', function(message){
+		sql.RegisterPlayer(message.user, message.pass).then((result) =>{
+			socket.emit("registerSucess");
+		}).catch((result) =>{
+			console.log(result);
+			socket.emit("registerFail", {message: result});
+		});
 	});
 
 	socket.on('pong', function(){
