@@ -488,6 +488,24 @@ io.sockets.on('connection', function(socket)
 	console.log ('User connected: ' + socket.id);
 	socket.emit('connectionEstabilished', {id: socket.id});
 
+	socket.on('RefreshLogin', function(message){
+		sql.GetPlayer(message.user, message.pass).then(function (result){
+			console.log("refresh login:")
+			console.log(result);
+			const iMax = Object.keys(playerList).length;
+			for(let i = 0; i<iMax; i++){
+				console.log("comparing " + playerList[i].id  + " with " +  result[0].user_id);
+				if(playerList[i].id == result[0].user_id){
+					playerList[i].sock = socket.id;
+					console.log("refreshed login for " + result[0].user_username)
+					console.log(playerList);
+				}
+			}
+		}).catch(function (error){
+			console.log(error);
+		});
+	});
+
 	socket.on('deckedit_getCards', function(){
 		let i = 0; const iMax = Object.keys(playerList).length;
 		let userid;
