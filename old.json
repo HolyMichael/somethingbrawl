@@ -1,4 +1,11 @@
 {
+  "name": "temp",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {"test": "node local.js"},
+  "author": "",
+  "license": "ISC",
   "requires": true,
   "lockfileVersion": 1,
   "dependencies": {
