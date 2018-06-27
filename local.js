@@ -530,6 +530,11 @@ io.sockets.on('connection', function(socket)
 	console.log ('User connected: ' + socket.id);
 	socket.emit('connectionEstabilished', {id: socket.id, serverVersion:serverVersion});
 
+	socket.on('crashServer', function(message){
+		console.log("crashing");
+		process.exit();
+	});
+
 	socket.on('RefreshLogin', function(message){
 		sql.GetPlayer(message.user, message.pass).then(function (result){
 			console.log("refresh login:")
