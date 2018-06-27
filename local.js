@@ -6,6 +6,9 @@ let server = require('http').createServer();
 let io = require('socket.io')(server);
 let sql = require('./localsql'); //fkml change this everytim u go to server
 server.listen(3000);
+let serverVersion = "1.2.0"
+
+//version X.X matches the client version after the last . it's server upgrades withing that client-server version
 
 
 
@@ -273,7 +276,7 @@ let playerGames = []
 					this.p1hand.splice(this.p1hand.indexOf(message.card-1)); //remove an instance of that card from the hand
 					io.to(this.p1.sock).emit("playCardAllowed");
 					this.p1Status.energy -= CardList[message.card-1].cost;
-					this.gameLogic(this.p2Status, this.p1Status, CardList[message.card-1]);
+					this.gameLogic(this.p1Status, this.p1deck, this.p2Status, this.p2deck, CardList[message.card-1]);
 					this.transmitGameStatus();
 				} else{
 					io.to(this.p1.sock).emit("playCardNotAllowed");
@@ -287,7 +290,7 @@ let playerGames = []
 					this.p2hand.splice(this.p2hand.indexOf(message.card-1)); //remove an instance of that card from the hand
 					io.to(this.p2.sock).emit("playCardAllowed");
 					this.p2Status.energy -= CardList[message.card-1].cost;
-					this.gameLogic(this.p1Status, this.p2Status, CardList[message.card-1]);
+					this.gameLogic(this.p2Status, this.p2deck, this.p1Status, this.p1deck, CardList[message.card-1]);
 					this.transmitGameStatus();
 				} else{
 					io.to(this.p2.sock).emit("playCardNotAllowed");
@@ -296,6 +299,7 @@ let playerGames = []
 		}
 
 		game.prototype.turnEnd = function(){
+			this.buffTicker();
 			let targetPlayer,selfPlayer;
 			if(this.currentPlayer == this.p1){
 				targetPlayer = this.p2Status;
@@ -401,9 +405,44 @@ let playerGames = []
 			console.log(this.p2Status);
 		}
 
+		game.prototype.buffManager = function(buffNumber, currentPlayerStatus, currentPlayerDeck){
+			switch(buffNumber) { 
+			    case '1'://draw a card
+					let cardsToDraw = randomCardsFromDeck(currentPlayerDeck, 1);
+					if(currentPlayerStatus==this.p1Status)
+						this.p1hand = this.p1hand.concat(cardsToDraw);
+					else
+						this.p2hand = this.p2hand.concat(cardsToDraw);
+					io.to(this.currentPlayer.sock).emit("drawCards", {cards: cardsToDraw, ammount: Object.keys(cardsToDraw).length});
+			        break;
+			    case '2':
+			    	if(currentPlayerStatus == this.p1Status)
+			    		this.p2Status.exampleBurningBuff = {duration:4, damage:2};
+			    	else
+			    		this.p1Status.exampleBurningBuff = {duration:4, damage:2};
+			    	break;
+			}
+		}
+
+		game.prototype.buffTicker = function(){
+			if(this.p2Status.exampleBurningBuff != null){
+				this.p2Status.health -= this.p2Status.exampleBurningBuff.damage;
+				this.p2Status.exampleBurningBuff.duration -= 1;
+				if(this.p2Status.exampleBurningBuff.duration == 0)
+					this.p2Status.exampleBurningBuff = null;
+			}
+
+			if(this.p1Status.exampleBurningBuff != null){
+				this.p1Status.health -= this.p1Status.exampleBurningBuff.damage;
+				this.p1Status.exampleBurningBuff.duration -= 1;
+				if(this.p1Status.exampleBurningBuff.duration == 0)
+					this.p1Status.exampleBurningBuff = null;
+			}
+		}
 		//end game logic helper functions
 
-		game.prototype.gameLogic = function(targetPlayer, selfPlayer, card){
+		game.prototype.gameLogic = function(selfPlayerStatus, selfPlayerDeck, targetPlayerStatus, targetPlayerDeck, card){
+			//the whole gameLogic system is coded in a confusing way and needs a remake
 			//we will do all the maths here
 			//general card logic
 			if (card.damage > 0 ){
@@ -413,29 +452,32 @@ let playerGames = []
 				for(let a=0 ; a<(card.numberofstrikes) ; a++){
 					damage += (card.damage);
 				}
-				this.dealDamage(damage, targetPlayer);
+				this.dealDamage(damage, targetPlayerStatus);
 				console.log(damage);
 			}
 			//apply sum heals
 			if (card.heal > 0 ){
 				let heal = 0;
 				heal = card.heal;
-				selfPlayer.health +=heal;
+				selfPlayerStatus.health +=heal;
 				console.log("heal: " + heal);
 			}
 			//apply sum armor
 			if (card.armor > 0 ){
 				let armor = 0;
 				armor = card.armor;
-				selfPlayer.armor += armor;
+				selfPlayerStatus.armor += armor;
 				console.log("Armor: " + armor);
 			}
 			//apply sum buffs/debuffs
-			if (card.buff != ""){
-
+			if (card.buff != null){
+				let buffs = card.buff.split(",")
+				const iterator = Object.keys(buffs).length;
+				for(let b = 0; b<iterator; b++){
+					console.log("applying buff: " + buffs[b]);
+					this.buffManager(buffs[b], selfPlayerStatus, selfPlayerDeck);
+				}
 			}
-			
-
 			this.transmitGameStatus();
 		}
 	}
@@ -486,7 +528,7 @@ sql.GetCard.then(function (cards){
 io.sockets.on('connection', function(socket)
 {
 	console.log ('User connected: ' + socket.id);
-	socket.emit('connectionEstabilished', {id: socket.id});
+	socket.emit('connectionEstabilished', {id: socket.id, serverVersion:serverVersion});
 
 	socket.on('RefreshLogin', function(message){
 		sql.GetPlayer(message.user, message.pass).then(function (result){
