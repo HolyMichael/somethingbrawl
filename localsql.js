@@ -106,6 +106,8 @@ exports.SavePlayerDeck = function(cardlist, userid){
 		con.query(sql, function(err, result){
 			let sql = "INSERT INTO userdeck (`userid`, `deckid`, `cardid`) VALUES ";
 			const iMax= Object.keys(cardlist).length;
+			if (iMax== 0)
+				resolve("empty deck");
 			for(let i=0;i<iMax;i++){
 				sql += "(" + mysql.escape(userid) +
 				"," + 1 +

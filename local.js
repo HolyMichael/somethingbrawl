@@ -6,7 +6,7 @@ let server = require('http').createServer();
 let io = require('socket.io')(server);
 let sql = require('./localsql'); //fkml change this everytim u go to server
 server.listen(3000);
-let serverVersion = "1.2.0"
+let serverVersion = "1.2.1"
 
 //version X.X matches the client version after the last . it's server upgrades withing that client-server version
 
