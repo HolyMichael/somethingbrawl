@@ -67,8 +67,8 @@ exports.RegisterPlayer = function(user,pass){
 	return new Promise(function(resolve,reject){
 		let sql = "SELECT * FROM user WHERE user_username=" + mysql.escape(user)
 		con.query(sql, function (err, result, fields) {
-			if (err) reject(2); //server related issue
-			if (!isEmpty(result)) reject("username in use");
+			if (err){ reject(2); return;} //server related issue
+			if (!isEmpty(result)){ reject("username in use"); return;}
 			if (isEmpty(result)){
 				let sql = "INSERT INTO user (`user_username`, `user_pass`, `user_activedeck`, `Char_Health`, `Char_Energy`, `Char_EnergyGrowth`, `Char_MaxEnergy`) VALUES" +
 				"(" + mysql.escape(user) +
@@ -79,8 +79,8 @@ exports.RegisterPlayer = function(user,pass){
 				",1" + //energy growth
 				",15)"; //max energy
 				con.query(sql, function (err, result) { //create the user
-					if (err) reject(err); //server related issue
-					if (isEmpty(result)) reject("user not created");
+					if (err) {reject(err); return;} //server related issue
+					if (isEmpty(result)) {reject("user not created"); return;}
 					console.log(result);
 					let sql = "INSERT INTO usercards (`userid`, `cardid`, `ownedammount`) VALUES ";
 					for(let i=1; i<7;i++){
@@ -106,8 +106,7 @@ exports.SavePlayerDeck = function(cardlist, userid){
 		con.query(sql, function(err, result){
 			let sql = "INSERT INTO userdeck (`userid`, `deckid`, `cardid`) VALUES ";
 			const iMax= Object.keys(cardlist).length;
-			if (iMax== 0)
-				resolve("empty deck");
+			if (iMax== 0){ resolve("empty deck"); return;}
 			for(let i=0;i<iMax;i++){
 				sql += "(" + mysql.escape(userid) +
 				"," + 1 +
@@ -129,8 +128,8 @@ exports.GetPlayerDeck = function (userid){
 			if (isEmpty(result)) reject("user not found");
 			let sql = "SELECT cardid FROM userdeck WHERE userid="  + mysql.escape(userid) + " AND deckid=" + mysql.escape(result[0].user_activedeck);
 			con.query(sql, function(err, result, fields){
-				if (err) reject(err);
-				if (isEmpty(result)) reject("user deck not found");
+				if (err) {reject(err); return;}
+				if (isEmpty(result)) {reject("user deck not found"); return;}
 				const iMax = Object.keys(result).length;
 				let sql ="SELECT id, level, type, name, cost, description FROM card WHERE id = " + mysql.escape(result[0].cardid);
 				for(let i = 1;i<iMax;i++){
