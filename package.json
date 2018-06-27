@@ -10,9 +10,7 @@
     "socket.io": "^2.1.1"
   },
   "devDependencies": {},
-  "scripts": {
-    "test": {"test": "node local.js"}
-  },
+	"scripts": {"test": "node local.js"},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/HolyMichael/somethingbrawl.git"
