@@ -83,7 +83,7 @@ exports.RegisterPlayer = function(user,pass){
 					if (isEmpty(result)) {reject("user not created"); return;}
 					console.log(result);
 					let sql = "INSERT INTO usercards (`userid`, `cardid`, `ownedammount`) VALUES ";
-					for(let i=1; i<7;i++){
+					for(let i=1; i<10;i++){
 						sql += "(" + result.insertId +
 						"," + i +
 						",1), ";
