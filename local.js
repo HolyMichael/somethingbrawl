@@ -1,29 +1,36 @@
 
 
 // Server setup
-let crypto = require('crypto')
+let crypto = require('crypto'); //unused
+let sql = require('./localsql'); //fkml change this everytim u go to server
 let server = require('http').createServer();
 let io = require('socket.io')(server);
-let sql = require('./localsql'); //fkml change this everytim u go to server
 server.listen(3000);
 let serverVersion = "1.3.0"
+// variable and object setup for objects read this https://code.tutsplus.com/tutorials/stop-nesting-functions-but-not-all-of-them--net-22315
+let playerList = [];
+let CardList = [];
+let playerGames = [];
+sql.GetCard.then(function (cards){
+	console.log(cards);
+	CardList = cards;
+}).catch(function (error){
+	console.log(error);
+});
+
 
 //version X.X matches the client version after the last . it's server upgrades withing that client-server version
 
 
 
 //functions
-setInterval(()=>{
-	console.log("heartbeat");
-	console.log(playerList);
-	console.log(playerGames);
-},15 * 1000);
+
 function randomCardsFromDeck(deck, number){
 	let max = Object.keys(deck).length;
 	let cards = [];
 	console.log("drawing this number of cards: " + number);
 	for(i=0;i<number;i++){
-		cards.push(deck[Math.floor(Math.random()*(max))].id);     // returns a number between 1 and decksize
+		cards.push(deck[Math.floor(Math.random()*(max))].id);     // returns a number between 0 and decksize-1
 	}
 	return cards;
 }
@@ -81,10 +88,6 @@ function isEmpty(obj) {
 function getSHA256(input){
     return crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex')
 }
-// variable and object setup for objects read this https://code.tutsplus.com/tutorials/stop-nesting-functions-but-not-all-of-them--net-22315
-let playerList = [];
-let CardList= [];
-let playerGames = []
 
 
 //player object{
@@ -223,7 +226,7 @@ let playerGames = []
 
 					let cardsToDraw = randomCardsFromDeck(this.p1deck , 3);
 					this.p1hand = cardsToDraw; //kept to avoid cheaters
-					console.log(cardsToDraw);
+					console.log(this.p1hand);
 					io.to(this.p1.sock).emit("drawCards", {cards: cardsToDraw, ammount: Object.keys(cardsToDraw).length});
 				}
 				else{
@@ -232,8 +235,8 @@ let playerGames = []
 
 					let cardsToDraw = randomCardsFromDeck(this.p2deck , 3);
 					this.p2hand = cardsToDraw; //kept to avoid cheaters
-					console.log(cardsToDraw);
-					io.to(this.p2.sock).emit("drawCards", {cards: cardsToDraw});
+					console.log(this.p2hand);
+					io.to(this.p2.sock).emit("drawCards", {cards: cardsToDraw, ammount: Object.keys(cardsToDraw).length});
 				}
 				console.log("current player: " + this.currentPlayer.name);
 				//emit warning animation
@@ -281,8 +284,8 @@ let playerGames = []
 				}
 			} else {
 				if(this.p2Status.energy >= CardList[message.card-1].cost){
-					if(!(this.p1hand.includes(message.card-1))){ //check if he actually has that card in hand
-						io.to(this.p1.sock).emit("playCardNotAllowed");
+					if(!(this.p2hand.includes(message.card-1))){ //check if he actually has that card in hand
+						io.to(this.p2.sock).emit("playCardNotAllowed");
 					}
 
 					this.p2hand.splice(this.p2hand.indexOf(message.card-1)); //remove an instance of that card from the hand
@@ -494,7 +497,7 @@ console.log ('Server Started');
 
 //ping check sequence
 //playerList.push(new player(1, "testname", "LFO", 1, "testsocketid"));
-console.log(playerList);
+
 //setTimeout(test2, 10000);
 
 /*console.log("pinging player");
@@ -511,13 +514,6 @@ function test2(){
 setTimeout(test,1000);
 //setTimeout(test2,3000);*/
 
-// Server setup
-sql.GetCard.then(function (cards){
-	console.log(cards);
-	CardList = cards;
-}).catch(function (error){
-	console.log(error);
-});
 
 //looping http://www.andygup.net/fastest-way-to-find-an-item-in-a-javascript-array/
 // Server methods
@@ -682,8 +678,8 @@ io.sockets.on('connection', function(socket)
 				break;
 			}
 		}
-		if(playerGames[i].p1loaded && playerGames[i].p2loaded){ //both players are loaded so let's clear the timeout
-			if(!playerGames[i].gameStarted){
+		if(!playerGames[i].gameStarted){
+			if(playerGames[i].p1loaded && playerGames[i].p2loaded){ //both players are loaded so let's clear the timeout
 				playerGames[i].gameStarted = true;
 				clearTimeout(playerGames[i].currentTimeout);
 				console.log("timeout cleared game has started");
