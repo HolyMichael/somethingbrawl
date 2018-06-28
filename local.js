@@ -6,14 +6,18 @@ let server = require('http').createServer();
 let io = require('socket.io')(server);
 let sql = require('./localsql'); //fkml change this everytim u go to server
 server.listen(3000);
-let serverVersion = "1.2.3"
+let serverVersion = "1.3.0"
 
 //version X.X matches the client version after the last . it's server upgrades withing that client-server version
 
 
 
 //functions
-
+setInterval(()=>{
+	console.log("heartbeat");
+	console.log(playerList);
+	console.log(playerGames);
+},15 * 1000);
 function randomCardsFromDeck(deck, number){
 	let max = Object.keys(deck).length;
 	let cards = [];
@@ -148,14 +152,14 @@ let playerGames = []
 		this.p1Status;
 		this.p2Status;
 
-		this.p1loaded = false;
-		this.p2loaded = false;
-
 		this.currentPlayer;
 
 		this.p1deck;
 		this.p2deck;
 
+		this.p1loaded = false;
+		this.p2loaded = false;
+		this.gameStarted = false;
 		this.currentTimeout = timeout;
 
 		this.transmission = {
@@ -211,12 +215,6 @@ let playerGames = []
 					this.p2Status = new playerStatus(result[0].Char_Health, result[0].Char_Energy, result[0].Char_EnergyGrowth, result[0].Char_MaxEnergy);
 					this.p1Status = new playerStatus(result[1].Char_Health, result[1].Char_Energy, result[0].Char_EnergyGrowth, result[1].Char_MaxEnergy);
 				}
-				console.log(this.p1.name);
-				console.log(this.p1deck);
-				console.log("loaded status of p1:");
-				console.log(this.p1Status);
-				console.log("loaded status of p2:");
-				console.log(this.p2Status);
 
 	  			console.log("decks \n" + this.p1deck +"\n" + this.p2deck);
 				if (firstPlayer == 0){
@@ -392,8 +390,6 @@ let playerGames = []
 		}
 		//game logic helper functions
 		game.prototype.dealDamage = function(damage, targetPlayer){
-			console.log(this.p1Status);
-			console.log(this.p2Status);
 			if (targetPlayer.armor>=damage){
 				targetPlayer.armor -= damage;
 			} else if(targetPlayer.armor < damage){
@@ -415,7 +411,7 @@ let playerGames = []
 						this.p2hand = this.p2hand.concat(cardsToDraw);
 					io.to(this.currentPlayer.sock).emit("drawCards", {cards: cardsToDraw, ammount: Object.keys(cardsToDraw).length});
 			        break;
-			    case '2':
+			    case '2': //apply burn
 			    	if(currentPlayerStatus == this.p1Status)
 			    		this.p2Status.exampleBurningBuff = {duration:4, damage:2};
 			    	else
@@ -669,7 +665,7 @@ io.sockets.on('connection', function(socket)
 		});
 	})
 
-	socket.on('gotCards', function(){
+	socket.on('gameLoaded', function(){
 		//we find the game this player is refering too
 		let i = 0; const iMax = Object.keys(playerGames).length; let flag=false;
 		for(;i<iMax;i++){
@@ -686,25 +682,20 @@ io.sockets.on('connection', function(socket)
 				break;
 			}
 		}
-		if(flag){//if we found this players let's check if both are loaded
-			if(playerGames[i].p1loaded && playerGames[i].p2loaded){ //both players are loaded so let's clear the timeout
+		if(playerGames[i].p1loaded && playerGames[i].p2loaded){ //both players are loaded so let's clear the timeout
+			if(!playerGames[i].gameStarted){
+				playerGames[i].gameStarted = true;
 				clearTimeout(playerGames[i].currentTimeout);
 				console.log("timeout cleared game has started");
-				console.log("telling " + playerGames[i].p1.sock);
-				console.log("and " + playerGames[i].p2.sock + "  that everyone has loaded");
 				io.to(playerGames[i].p1.sock).emit('loadGame');
 				io.to(playerGames[i].p2.sock).emit('loadGame');
 				//define who plays first
-				let firstPlayer = Math.floor(Math.random());
+				let firstPlayer = Math.floor(Math.random() * Math.floor(2));
 				playerGames[i].setUpGame(firstPlayer);
-
 			}
-		}  else{
-			console.log("didnt find the player calling gotCards");
 		}
-
 	});
-	// TODO if player logs in, quequees for match, logs out, someone else quequees and he logins while he has not timed out his new object is destroyed!
+
 	socket.on('FindOpponent', function(){ //after setting user to LFO user needs to be able to revert back to not lfo
 		//this function runs code for every client the first one to reject it is the first player to answer to the ping with a gamestate of LFO, if no one
 		//rejects it, they will all be sovled within client timeout time, disconnecting all disconnected players in the process and setting this player to LFO
@@ -739,6 +730,7 @@ io.sockets.on('connection', function(socket)
 			this.CurrentGameIndex;
   			io.to(playerList[value].sock).emit('foundOpp',{username:PlayerRef.name}); //we send him the oposing player name
   			sql.GetPlayerDeck(playerList[value].id).then((result) =>{ //we send him his deck
+				playerList[value].gameState = "FO";
   				console.log(playerList[value].name + "'s Deck");
   				console.log(result);
   				playerGames[this.CurrentGameIndex].p2deck=result;
@@ -749,6 +741,7 @@ io.sockets.on('connection', function(socket)
 			//and the user that was waiting to load the game and we find his deck
 			socket.emit("foundOpp",{username:playerList[value].name}) //we send him the oposing player name
 			sql.GetPlayerDeck(PlayerRef.id).then((result) =>{
+				PlayerRef.gameState = "FO";
 				console.log(PlayerRef.name + "'s Deck");
   				console.log(result);
   				playerGames[this.CurrentGameIndex].p1deck=result;
@@ -764,6 +757,7 @@ io.sockets.on('connection', function(socket)
 	  			socket.emit("reset")
 	  			io.to(playerList[value].sock).emit("reset");
 	  			playerGames.splice(CurrentGameIndex,1);
+	  			console.log(playerGames);
   			},10000)
 
 	  		//we push a new game into the games list
