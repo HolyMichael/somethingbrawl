@@ -63,7 +63,7 @@ exports.GetPlayer = function(user,pass){
 	});
 };
 
-exports.RegisterPlayer = function(user,pass){
+exports.RegisterPlayer = function(user,pass, cardslenght){
 	return new Promise(function(resolve,reject){
 		let sql = "SELECT * FROM user WHERE user_username=" + mysql.escape(user)
 		con.query(sql, function (err, result, fields) {
@@ -74,7 +74,7 @@ exports.RegisterPlayer = function(user,pass){
 				"(" + mysql.escape(user) +
 				"," + mysql.escape(pass) +
 				",1" + //active deck (not implemented)
-				",100" + //health
+				",50" + //health
 				",5" + //energy
 				",1" + //energy growth
 				",15)"; //max energy
@@ -83,7 +83,7 @@ exports.RegisterPlayer = function(user,pass){
 					if (isEmpty(result)) {reject("user not created"); return;}
 					console.log(result);
 					let sql = "INSERT INTO usercards (`userid`, `cardid`, `ownedammount`) VALUES ";
-					for(let i=1; i<10;i++){
+					for(let i=1; i<cardslenght;i++){
 						sql += "(" + result.insertId +
 						"," + i +
 						",1), ";
@@ -120,6 +120,7 @@ exports.SavePlayerDeck = function(cardlist, userid){
 		});
 	});
 }
+
 exports.GetPlayerDeck = function (userid){
 	return new Promise(function(resolve, reject){
 		let sql = "SELECT user_activedeck FROM user WHERE user_id=" + mysql.escape(userid);

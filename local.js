@@ -6,7 +6,7 @@ let sql = require('./localsql'); //fkml change this everytim u go to server
 let server = require('http').createServer();
 let io = require('socket.io')(server);
 server.listen(3000);
-let serverVersion = "1.3.0"
+let serverVersion = "1.3.1"
 // variable and object setup for objects read this https://code.tutsplus.com/tutorials/stop-nesting-functions-but-not-all-of-them--net-22315
 let playerList = [];
 let CardList = [];
@@ -595,7 +595,7 @@ io.sockets.on('connection', function(socket)
 	})
 
 	socket.on('registerUser', function(message){
-		sql.RegisterPlayer(message.user, message.pass).then((result) =>{
+		sql.RegisterPlayer(message.user, message.pass, Object.keys(cards).length).then((result) =>{
 			socket.emit("registerSucess");
 		}).catch((result) =>{
 			console.log(result);
